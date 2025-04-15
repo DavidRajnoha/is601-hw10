@@ -15,7 +15,7 @@ Fixtures:
 
 # Standard library imports
 from builtins import range
-from datetime import datetime
+from datetime import datetime, timedelta
 from unittest.mock import patch
 from uuid import uuid4
 
@@ -44,6 +44,35 @@ TEST_DATABASE_URL = settings.database_url.replace("postgresql://", "postgresql+a
 engine = create_async_engine(TEST_DATABASE_URL, echo=settings.debug)
 AsyncTestingSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 AsyncSessionScoped = scoped_session(AsyncTestingSessionLocal)
+
+@pytest.fixture(scope="session")
+def user_email():
+    return fake.email()
+
+
+@pytest.fixture
+def user_token(user_email):
+    access_token_expires = timedelta(minutes=60)
+    token = create_access_token(data={"sub": user_email,"role": UserRole.AUTHENTICATED.name},
+                                expires_delta=access_token_expires)
+    return token
+
+@pytest.fixture(scope="session")
+def admin_email():
+    return "admin@example.com"
+
+@pytest.fixture
+def admin_token(admin_email):
+    access_token_expires = timedelta(minutes=60)
+    token = create_access_token(data={"sub": admin_email, "role": str(UserRole.ADMIN.name)},
+                                expires_delta=access_token_expires)
+    return token
+
+
+@pytest.fixture
+def manager_token():
+    token = create_access_token(data={"sub": "manager@example.com","role": str(UserRole.MANAGER.name)})
+    return token
 
 
 @pytest.fixture
@@ -110,12 +139,12 @@ async def locked_user(db_session):
     return user
 
 @pytest.fixture(scope="function")
-async def user(db_session):
+async def user(db_session, user_email):
     user_data = {
         "nickname": fake.user_name(),
         "first_name": fake.first_name(),
         "last_name": fake.last_name(),
-        "email": fake.email(),
+        "email": user_email,
         "hashed_password": hash_password("MySuperPassword$1234"),
         "role": UserRole.AUTHENTICATED,
         "email_verified": False,
@@ -181,10 +210,10 @@ async def users_with_same_role_50_users(db_session):
     return users
 
 @pytest.fixture
-async def admin_user(db_session: AsyncSession):
+async def admin_user(db_session: AsyncSession, admin_email):
     user = User(
         nickname="admin_user",
-        email="admin@example.com",
+        email=admin_email,
         first_name="John",
         last_name="Doe",
         hashed_password="securepassword",
