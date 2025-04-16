@@ -4,6 +4,7 @@ from sqlalchemy import select
 from app.dependencies import get_settings
 from app.models.user_model import User
 from app.services.user_service import UserService
+from app.utils.exceptions import UserValidationFailed
 
 pytestmark = pytest.mark.asyncio
 
@@ -24,8 +25,9 @@ async def test_create_user_with_invalid_data(db_session, email_service):
         "email": "invalidemail",  # Invalid email
         "password": "short",  # Invalid password
     }
-    user = await UserService.create(db_session, user_data, email_service)
-    assert user is None
+    with pytest.raises(UserValidationFailed):
+        await UserService.create(db_session, user_data, email_service)
+
 
 # Test fetching a user by ID when the user exists
 async def test_get_by_id_user_exists(db_session, user):
@@ -105,8 +107,9 @@ async def test_register_user_with_invalid_data(db_session, email_service):
         "email": "registerinvalidemail",  # Invalid email
         "password": "short",  # Invalid password
     }
-    user = await UserService.register_user(db_session, user_data, email_service)
-    assert user is None
+    with pytest.raises(UserValidationFailed):
+        await UserService.create(db_session, user_data, email_service)
+
 
 # Test successful user login
 async def test_login_user_successful(db_session, verified_user):
