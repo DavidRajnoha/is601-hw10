@@ -1,3 +1,38 @@
+### Issues
+
+- https://github.com/DavidRajnoha/is601-hw10/issues/1
+- https://github.com/DavidRajnoha/is601-hw10/issues/3
+- https://github.com/DavidRajnoha/is601-hw10/issues/7
+- https://github.com/DavidRajnoha/is601-hw10/issues/9
+- https://github.com/DavidRajnoha/is601-hw10/issues/11
+- https://github.com/DavidRajnoha/is601-hw10/issues/11
+
+### Docker Image
+
+https://hub.docker.com/repository/docker/drajnoha/wis_club_api/general
+
+### What Have I learned
+
+First thing I have learned is refresh of setting up my pycharm environment so the run and debug configurations
+work with the application running on docker compose. I have achieved semi-success there, and I ahve actually for the first
+time used the run/config templates, so I was able to run all the tests for files (and mainly debug them) out of the UI,
+but I failed to be able to configure the tests in the individual modules.
+
+Then I have spent significant time debugging the issue caused by get_db wrapping the exception raised in routes. There I
+gained some insights into how the Depends works with fast API and how it affects the overall flow of the app.
+
+Lastly, I have again refreshed my understanding of the OAuth flow and the role of the token, things I have known in the past
+but it is always good to remind them.
+
+
+
+
+
+
+
+
+
+
 # Event Manager Company: Software QA Analyst/Developer Onboarding Assignment
 
 Welcome to the Event Manager Company! As a newly hired Software QA Analyst/Developer and a student in software engineering, you are embarking on an exciting journey to contribute to our project aimed at developing a secure, robust REST API that supports JWT token-based OAuth2 authentication. This API serves as the backbone of our user management system and will eventually expand to include features for event management and registration.
