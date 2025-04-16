@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.dependencies import get_email_service, get_settings
 from app.models.user_model import User
 from app.schemas.user_schemas import UserCreate, UserUpdate
+from app.utils.exceptions import NicknameAlreadyExists, EmailAlreadyExists, UserValidationFailed
 from app.utils.nickname_gen import generate_nickname
 from app.utils.security import generate_verification_token, hash_password, verify_password
 from uuid import UUID
@@ -50,17 +51,16 @@ class UserService:
         return await cls._fetch_user(session, email=email)
 
     @classmethod
-    async def create(cls, session: AsyncSession, user_data: Dict[str, str], email_service: EmailService) -> Optional[
-        User]:
+    async def create(cls, session: AsyncSession, user_data: Dict[str, str], email_service: EmailService) -> User:
         try:
             validated_data = UserCreate(**user_data).model_dump()
 
-            existing_user = await cls.get_by_email(session, validated_data['email'])
+            existing_user = await cls.get_by_email(session, validated_data["email"])
             if existing_user:
                 logger.error("User with given email already exists.")
-                return None
+                raise EmailAlreadyExists("User with given email already exists.")
 
-            validated_data['hashed_password'] = hash_password(validated_data.pop('password'))
+            validated_data["hashed_password"] = hash_password(validated_data.pop("password"))
 
             nickname = validated_data.get("nickname")
             if not nickname:
@@ -71,18 +71,19 @@ class UserService:
             else:
                 if await cls.get_by_nickname(session, nickname):
                     logger.error(f"Nickname '{nickname}' is already taken.")
-                    return None
+                    raise NicknameAlreadyExists(f"Nickname '{nickname}' is already taken.")
 
             new_user = User(**validated_data)
             new_user.verification_token = generate_verification_token()
             session.add(new_user)
             await session.commit()
             await email_service.send_verification_email(new_user)
+
             return new_user
 
         except ValidationError as e:
             logger.error(f"Validation error during user creation: {e}")
-            return None
+            raise UserValidationFailed(e.errors())
 
     @classmethod
     async def update(cls, session: AsyncSession, user_id: UUID, update_data: Dict[str, str]) -> Optional[User]:

@@ -30,6 +30,7 @@ from app.schemas.token_schema import TokenResponse
 from app.schemas.user_schemas import LoginRequest, UserBase, UserCreate, UserListResponse, UserResponse, UserUpdate
 from app.services.user_service import UserService
 from app.services.jwt_service import create_access_token
+from app.utils.exceptions import EmailAlreadyExists, NicknameAlreadyExists, UserValidationFailed
 from app.utils.link_generation import create_user_links, generate_pagination_links
 from app.dependencies import get_settings
 from app.services.email_service import EmailService
@@ -121,9 +122,21 @@ async def delete_user(user_id: UUID, db: AsyncSession = Depends(get_db), token: 
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-
-@router.post("/users/", response_model=UserResponse, status_code=status.HTTP_201_CREATED, tags=["User Management Requires (Admin or Manager Roles)"], name="create_user")
-async def create_user(user: UserCreate, request: Request, db: AsyncSession = Depends(get_db), email_service: EmailService = Depends(get_email_service), token: str = Depends(oauth2_scheme), current_user: dict = Depends(require_role(["ADMIN", "MANAGER"]))):
+@router.post(
+    "/users/",
+    response_model=UserResponse,
+    status_code=status.HTTP_201_CREATED,
+    tags=["User Management Requires (Admin or Manager Roles)"],
+    name="create_user"
+)
+async def create_user(
+    user: UserCreate,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    email_service: EmailService = Depends(get_email_service),
+    token: str = Depends(oauth2_scheme),
+    current_user: dict = Depends(require_role(["ADMIN", "MANAGER"]))
+):
     """
     Create a new user.
 
@@ -139,29 +152,29 @@ async def create_user(user: UserCreate, request: Request, db: AsyncSession = Dep
     Returns:
     - UserResponse: The newly created user's information along with navigation links.
     """
-    existing_user = await UserService.get_by_email(db, user.email)
-    if existing_user:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already exists")
-    
-    created_user = await UserService.create(db, user.model_dump(), email_service)
-    if not created_user:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create user")
-    
-    
-    return UserResponse.model_construct(
-        id=created_user.id,
-        bio=created_user.bio,
-        first_name=created_user.first_name,
-        last_name=created_user.last_name,
-        profile_picture_url=created_user.profile_picture_url,
-        nickname=created_user.nickname,
-        email=created_user.email,
-        last_login_at=created_user.last_login_at,
-        created_at=created_user.created_at,
-        updated_at=created_user.updated_at,
-        links=create_user_links(created_user.id, request)
-    )
-
+    try:
+        created_user = await UserService.create(db, user.model_dump(), email_service)
+        return UserResponse.model_construct(
+            id=created_user.id,
+            bio=created_user.bio,
+            first_name=created_user.first_name,
+            last_name=created_user.last_name,
+            profile_picture_url=created_user.profile_picture_url,
+            nickname=created_user.nickname,
+            email=created_user.email,
+            last_login_at=created_user.last_login_at,
+            created_at=created_user.created_at,
+            updated_at=created_user.updated_at,
+            links=create_user_links(created_user.id, request)
+        )
+    except EmailAlreadyExists:
+        raise HTTPException(status_code=400, detail="Email already exists")
+    except NicknameAlreadyExists:
+        raise HTTPException(status_code=400, detail="Nickname already taken")
+    except UserValidationFailed as e:
+        raise HTTPException(status_code=422, detail=e.validation_errors)
+    except Exception:
+        raise HTTPException(status_code=500, detail="Unexpected error while creating user")
 
 @router.get("/users/", response_model=UserListResponse, tags=["User Management Requires (Admin or Manager Roles)"])
 async def list_users(
@@ -191,11 +204,20 @@ async def list_users(
 
 
 @router.post("/register/", response_model=UserResponse, tags=["Login and Registration"])
-async def register(user_data: UserCreate, session: AsyncSession = Depends(get_db), email_service: EmailService = Depends(get_email_service)):
-    user = await UserService.register_user(session, user_data.model_dump(), email_service)
-    if user:
+async def register(
+    user_data: UserCreate,
+    session: AsyncSession = Depends(get_db),
+    email_service: EmailService = Depends(get_email_service),
+):
+    try:
+        user = await UserService.register_user(session, user_data.model_dump(), email_service)
         return user
-    raise HTTPException(status_code=400, detail="Email already exists")
+    except EmailAlreadyExists:
+        raise HTTPException(status_code=400, detail="Email already exists")
+    except NicknameAlreadyExists:
+        raise HTTPException(status_code=400, detail="Nickname already taken")
+    except UserValidationFailed as e:
+        raise HTTPException(status_code=422, detail=e.validation_errors)
 
 @router.post("/login/", response_model=TokenResponse, tags=["Login and Registration"])
 async def login(form_data: OAuth2PasswordRequestForm = Depends(), session: AsyncSession = Depends(get_db)):
